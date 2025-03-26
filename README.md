@@ -31,3 +31,9 @@ The goal is to assist users with finding time slots for meetings given the follo
 - Slack integration for feedback to the participants after successful scheduling
 - Facilitate deployment to a cloud via proper Docker setup
 - Proper structuring of the Python project
+
+## Screenshots
+
+![screenshot-0.png](screenshot-0.png)
+
+![screenshot-1.png](screenshot-1.png)
