@@ -1,23 +1,31 @@
 import os
 import textwrap
 
-import dataset
 from agno.agent import Agent
+from agno.memory.v2.db.sqlite import SqliteMemoryDb
+from agno.memory.v2.memory import Memory
 from agno.models.openai import OpenAIChat
 from agno.storage.agent.sqlite import SqliteAgentStorage
-from slack_bolt import App
+from agno.team import Team
+from slack_bolt import App, Ack
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_sdk import WebClient
 
-SLACK_TOKEN = os.getenv("SLACK_TOKEN")
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_APP_TOKEN = os.getenv("SLACK_APP_TOKEN")
 
-app = App(token=SLACK_TOKEN)
-handler = SocketModeHandler(app, SLACK_APP_TOKEN)
+slack_app = App(token=SLACK_BOT_TOKEN)
+slack_handler = SocketModeHandler(slack_app, app_token=SLACK_APP_TOKEN)
 
-db = dataset.connect("sqlite:///database.db")
+DB_FILE = "database.db"
 
-USER_MODEL = "gpt-4o-mini"
+MEMORY_MODEL = "gpt-4.1-mini"
+preferences_memory = Memory(
+    model=OpenAIChat(id=MEMORY_MODEL),
+    db=SqliteMemoryDb(table_name="user_preferences", db_file=DB_FILE),
+)
+
+USER_MODEL = "gpt-4.1-mini"
 USER_NAME = "Calendar User Agent for {}"
 USER_ROLE = "Represent user {} in negotiating calendar events."
 USER_INSTRUCTIONS = [
@@ -30,9 +38,9 @@ USER_INSTRUCTIONS = [
     "12 PM to 13 PM is lunch time where no meetings are allowed.",
 ]
 
-BROKER_MODEL = "gpt-4o-mini"
+BROKER_MODEL = "o4-mini"
 BROKER_NAME = "Calendar Broker Agent"
-BROKER_ROLE = "Coordinate the negotiation of a new calendar event among multiple user agents."
+BROKER_DESCRIPTION = "Coordinate the negotiation of a new calendar event among multiple user agents."
 BROKER_INSTRUCTIONS = [
     "Receive requests to find a time slot for a meeting with specified participants.",
     "Query each participant's calendar agent for available time slots.",
@@ -42,7 +50,7 @@ BROKER_INSTRUCTIONS = [
     "Your goal is to provide the caller with a result, not with choices."
 ]
 
-SECRETARY_MODEL = "gpt-4o-mini"
+SECRETARY_MODEL = "gpt-4.1"
 SECRETARY_NAME = "Calendar Secretary Agent talking to {}"
 SECRETARY_ROLE = "Process requests from {} for the scheduling of meetings."
 SECRETARY_INSTRUCTIONS = [
@@ -56,15 +64,10 @@ SECRETARY_INSTRUCTIONS = [
     "Once confirmed, initiate the scheduling of the meeting.",
 ]
 
-
 class UserAgent(Agent):
     def __init__(self, session_id: str, user_id: str):
 
-        db_user = db["users"].find_one(user_id=user_id)
-        if db_user:
-            user_preferences = db_user["preferences"]
-        else:
-            user_preferences = "None"
+        user_preferences = "None" # TODO: inject actual memories
 
         if user_id == "U08FBNWBJKU":
             additional_context = textwrap.dedent(f'''
@@ -91,19 +94,19 @@ class UserAgent(Agent):
             add_datetime_to_instructions=True,
         )
 
-
-class BrokerAgent(Agent):
+class BrokerAgent(Team):
 
     def __init__(self, *, session_id: str, participants: list[str]):
-        team = [UserAgent(session_id, participant) for participant in participants]
+        members = [UserAgent(session_id, participant) for participant in participants]
         super().__init__(
             model=OpenAIChat(id=BROKER_MODEL),
+            mode="coordinate",
             # session_id=session_id,
             name=BROKER_NAME,
-            role=BROKER_ROLE,
+            description=BROKER_DESCRIPTION,
             instructions=BROKER_INSTRUCTIONS,
             add_datetime_to_instructions=True,
-            team=team
+            members=members
         )
 
     def find_time_slot(self, *, title: str, date: str, duration: str, participants: list[str]):
@@ -118,10 +121,10 @@ class BrokerAgent(Agent):
 
 class SecretaryAgent(Agent):
 
-    def __init__(self, user_id: str, session_id: str):
-        self.__storage = SqliteAgentStorage(
+    def __init__(self, user_id: str, session_id: str = None):
+        storage = SqliteAgentStorage(
             table_name="agent_sessions",
-            db_file="database.db",
+            db_file=DB_FILE,
         )
         super().__init__(
             model=OpenAIChat(id=SECRETARY_MODEL),
@@ -130,10 +133,12 @@ class SecretaryAgent(Agent):
             name=SECRETARY_NAME.format(user_id),
             role=SECRETARY_ROLE.format(user_id),
             instructions=SECRETARY_INSTRUCTIONS,
-            storage=self.__storage,
+            storage=storage,
+            memory=preferences_memory,
+            enable_agentic_memory=True,
             add_datetime_to_instructions=True,
             add_history_to_messages=True,
-            num_history_responses=8,
+            num_history_responses=64,
             tools=[self.__find_time_slot, self.__schedule_event],
         )
 
@@ -194,84 +199,128 @@ class SecretaryAgent(Agent):
 
         return "Success!"
 
-@app.action("preferences_updated")
-def app_action_preferences_updated(ack, body, logger):
+def publish_app_home(client: WebClient, user_id: str):
+    def build_header() -> list[dict]:
+        return [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "Personal Calendar Preferences",
+                    "emoji": True
+                }
+            },
+            {
+                "type": "divider"
+            }
+        ]
+
+    def build_preference(preference_id: str, content: str) -> list[dict]:
+        return [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"_{content}_"
+                },
+                "accessory": {
+                    "type": "button",
+                    "action_id": "delete_preference",
+                    "value": preference_id,
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Delete"
+                    },
+                    "style": "danger",
+                    "confirm": {
+                        "title": {
+                            "type": "plain_text",
+                            "text": "Are you sure?"
+                        },
+                        "text": {
+                            "type": "plain_text",
+                            "text": f"This will permanently delete the following preference:\n\"{content}\""
+                        },
+                        "confirm": {
+                            "type": "plain_text",
+                            "text": "Delete"
+                        },
+                        "deny": {
+                            "type": "plain_text",
+                            "text": "Cancel"
+                        }
+                    }
+                }
+            },
+            {
+                "type": "divider"
+            }
+        ]
+
+    def build_no_preferences_info() -> list[dict]:
+        return [{
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "_There are no preferences memorized yet._"
+            }
+        }]
+
+    def build_preferences() -> list[dict]:
+        memories = preferences_memory.get_user_memories(user_id=user_id)
+        if len(memories) > 0:
+            return [element for memory in reversed(memories) for element in build_preference(memory.memory_id, memory.memory)]
+        else:
+            return build_no_preferences_info()
+
+    client.views_publish(
+        user_id=user_id,
+        view={
+            "type": "home",
+            "blocks": build_header() + build_preferences()
+        }
+    )
+
+@slack_app.event("app_home_opened")
+def app_event_app_home_opened(ack: Ack, client: WebClient, event: dict):
     ack()
-    user_id = body['user']['id']
-    user_preferences = body['actions'][0]['value']
-    if not user_preferences:
-        user_preferences = ""
-
-    print(f"User {user_id} entered preferences.")
-
-    db["users"].upsert({"user_id": user_id, "preferences": user_preferences}, keys=["user_id"])
-
-
-@app.event("app_home_opened")
-def app_event_app_home_opened(event, client: WebClient):
     if event["tab"] != "home":
         return
 
     user_id = event["user"]
-
     print(f"User {user_id} opened the app home.")
 
-    db_user = db["users"].find_one(user_id=user_id)
-    if db_user:
-        user_preferences = db_user["preferences"]
-    else:
-        user_preferences = "Some default preferences."
-
-    client.views_publish(
-        user_id=event["user"],
-        view={
-            "type": "home",
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "QArrange",
-                        "emoji": True
-                    }
-                },
-                {
-                    "type": "input",
-                    "dispatch_action": True,
-                    "element": {
-                        "type": "plain_text_input",
-                        "multiline": True,
-                        "action_id": "preferences_updated",
-                        "initial_value": user_preferences,
-                        "dispatch_action_config": {
-                            "trigger_actions_on": ["on_enter_pressed"]
-                        }
-                    },
-                    "label": {
-                        "type": "plain_text",
-                        "text": "Personal calendar preferences",
-                        "emoji": True
-                    }
-                }
-            ]
-        }
-    )
-
+    publish_app_home(client, user_id)
 
 def sanitize_slack_message(message: str):
     return message.replace("**", "*")
 
-@app.event("message")
-def app_event_message_im(event, client: WebClient):
-    print(f"User {event["user"]} has sent a private message.")
+@slack_app.action("delete_preference")
+def handle_some_action(ack: Ack, client: WebClient, action: dict, body: dict):
+    ack()
+
+    user_id = body["user"]["id"]
+    preference_id = action["value"]
+    print(f"User {user_id} requested to delete preference {preference_id}.")
+
+    preferences_memory.delete_user_memory(preference_id, user_id=user_id)
+
+    publish_app_home(client, user_id)
+
+@slack_app.event("message")
+def app_event_message_im(client: WebClient, event: dict):
+    print(f"User {event['user']} sent a private message.")
 
     secretary = SecretaryAgent(user_id=event["user"], session_id=event["thread_ts"])
     response = secretary.run(message=event["text"])
-    client.chat_postMessage(text=sanitize_slack_message(response.content), channel=event["channel"],
-                            thread_ts=event["ts"])
+    client.chat_postMessage(
+        text=sanitize_slack_message(response.content),
+        channel=event["channel"],
+        thread_ts=event["ts"]
+    )
 
-handler.start()
+
+slack_handler.start()
 
 # TODO: Correct session handling.
 # TODO: Make use of Workflows.
-# TODO: Limit team agent requests.
