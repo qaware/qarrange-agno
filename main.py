@@ -20,35 +20,49 @@ slack_handler = SocketModeHandler(slack_app, app_token=SLACK_APP_TOKEN)
 DB_FILE = "database.db"
 
 MEMORY_MODEL = "gpt-4.1-mini"
-preferences_memory = Memory(
+
+preference_memory = Memory(
     model=OpenAIChat(id=MEMORY_MODEL),
-    db=SqliteMemoryDb(table_name="user_preferences", db_file=DB_FILE),
+    db=SqliteMemoryDb(table_name="preference_memory", db_file=DB_FILE),
+)
+session_storage_agents = SqliteAgentStorage(
+    table_name="session_storage_agents",
+    db_file=DB_FILE,
+    mode="agent"
+)
+session_storage_teams = SqliteAgentStorage(
+    table_name="session_storage_teams",
+    db_file=DB_FILE,
+    mode="team"
 )
 
 USER_MODEL = "gpt-4.1-mini"
 USER_NAME = "Calendar User Agent for {}"
-USER_ROLE = "Represent user {} in negotiating calendar events."
+USER_ROLE = "Represent user {} in front of the Calendar Broker Agent."
 USER_INSTRUCTIONS = [
-    "Process event setup requests from the broker on behalf of the user.",
-    "Negotiate based on existing events and blockers in the calendar of the user.",
-    "Take preferences of the user into account, such as typical working hours or events that are not actual blockers.",
-    "Be cooperative and facilitate compromises."
-    "If the user's preferences indicate that an existing blocker is not that important, ALLOW IT TO BE OVERWRITTEN WITHOUT ASKING FOR FURTHER CONSENT."
-    "Assume standard working hours from 9 AM to 12 PM and 1 PM to 5 PM.",
-    "12 PM to 13 PM is lunch time where no meetings are allowed.",
+    "The Calendar Broker Agent will ask you to provide available time slots for the user you represent.",
+    "Remember that you do not interact with the user, but with the Calendar Broker Agent.",
+    "Negotiate based on existing events and blockers in the calendar of your user.",
+    "Take preferences of the user into account, such as typical working hours.",
+    "Be cooperative and facilitate compromises.",
+    "Allow your user's events to be overwritten if their preference says they are unimportant.",
+    "Assume standard working hours from 9 AM to 12 PM and 1 PM to 5 PM, if no preference says otherwise.",
+    "12 PM to 13 PM is lunch time where no meetings are allowed, if no preference says otherwise.",
 ]
 
 BROKER_MODEL = "o4-mini"
 BROKER_NAME = "Calendar Broker Agent"
-BROKER_DESCRIPTION = "Coordinate the negotiation of a new calendar event among multiple user agents."
+BROKER_DESCRIPTION = "Negotiate time slots for calendar event with user agents representing the participants."
 BROKER_INSTRUCTIONS = [
     "Receive requests to find a time slot for a meeting with specified participants.",
-    "Query each participant's calendar agent for available time slots.",
+    "Query each participant's Calendar User Agent for available time slots.",
     "Negotiate back and forth until consensus on a time slot is achieved.",
     "Reiterate the inquiries with the agents in case of conflicts, asking for suggested alternatives and compromises.",
-    "IN CASE OF CONFLICTS, DO NOT IMMEDIATELY RESPOND TO THE CALLER! Instead, continue to negotiate with the calendar user agents.",
-    "Your goal is to provide the caller with a result, not with choices."
+    "IN CASE OF CONFLICTS, DO NOT IMMEDIATELY RESPOND TO THE CALLER! Instead, continue to negotiate with the Calendar User Agents.",
+    "Once you have achieved consensus, immediately report back to the caller. No need to inform the Calendar User Agents about the outcome.",
+    "Your goal is to provide the caller with a final result (a definite time slot), not with choices.",
 ]
+BROKER_SUCCESS_CRITERIA = "Achieve consensus on a meeting date and time or, as a last resort, announce that no common time slot can be found."
 
 SECRETARY_MODEL = "gpt-4.1"
 SECRETARY_NAME = "Calendar Secretary Agent talking to {}"
@@ -62,56 +76,71 @@ SECRETARY_INSTRUCTIONS = [
     "If any of the required information is missing, query it from the user.",
     "As soon as all required information is collected, summarize it and ask for confirmation.",
     "Once confirmed, initiate the scheduling of the meeting.",
+    "If the scheduling succeeded, add the event to the participants' calendars.",
 ]
 
 class UserAgent(Agent):
-    def __init__(self, session_id: str, user_id: str):
+    def __init__(self, user_id: str, session_id: str, participant: str):
 
-        user_preferences = "None" # TODO: inject actual memories
+        additional_context = "Existing calendar blockers of user:\n"
 
-        if user_id == "U08FBNWBJKU":
-            additional_context = textwrap.dedent(f'''
-                Existing calendar blockers of user:
-                - Sales meeting next Friday 9 AM to 12 PM
-                Preferences of user:
-                {textwrap.dedent(user_preferences)}
-            ''').strip()
+        # TODO: Actual calendar integration
+        if participant == "U08FBNWBJKU": # MBR
+            additional_context += "- Sales meeting next Friday 9 AM to 12 PM\n"
         else:
-            additional_context = textwrap.dedent(f'''
-                Existing calendar blockers of user:
-                - Marketing meeting next Friday 13 PM to 17 PM
-                Preferences of user:
-                {textwrap.dedent(user_preferences)}
-            ''').strip()
+            additional_context += "- Marketing meeting next Friday 13 PM to 17 PM\n"
+
+        additional_context += "Preferences of user:\n"
+        memories = preference_memory.get_user_memories(participant)
+        for memory in memories:
+            additional_context += f"- {memory.memory}\n"
+        if not memories:
+            additional_context += "None."
+
+        self.__session_id_without_context = session_id
+        self.__session_id = f"{self.__session_id_without_context}/{self.__class__.__name__}/{participant}"
+        print(f"[{user_id}/{self.__session_id}] Initializing.")
 
         super().__init__(
             model=OpenAIChat(id=USER_MODEL),
-            # session_id=session_id,
-            name=USER_NAME.format(user_id),
-            role=USER_ROLE.format(user_id),
+            user_id=user_id,
+            session_id=self.__session_id,
+            name=USER_NAME.format(participant),
+            role=USER_ROLE.format(participant),
             instructions=USER_INSTRUCTIONS,
             additional_context=additional_context,
+            storage=session_storage_agents,
             add_datetime_to_instructions=True,
+            add_history_to_messages=True,
+            num_history_responses=64,
         )
 
 class BrokerAgent(Team):
 
-    def __init__(self, *, session_id: str, participants: list[str]):
-        members = [UserAgent(session_id, participant) for participant in participants]
+    def __init__(self, *, user_id: str, session_id: str, participants: list[str]):
+        self.__session_id_without_context = session_id
+        self.__session_id = f"{self.__session_id_without_context}/{self.__class__.__name__}"
+        print(f"[{user_id}/{self.__session_id}] Initializing.")
+
+        members = [UserAgent(user_id, self.__session_id_without_context, participant) for participant in participants]
         super().__init__(
             model=OpenAIChat(id=BROKER_MODEL),
             mode="coordinate",
-            # session_id=session_id,
+            user_id=user_id,
+            session_id=self.__session_id,
             name=BROKER_NAME,
             description=BROKER_DESCRIPTION,
             instructions=BROKER_INSTRUCTIONS,
+            success_criteria=BROKER_SUCCESS_CRITERIA,
+            storage=session_storage_teams,
             add_datetime_to_instructions=True,
             members=members
         )
 
     def find_time_slot(self, *, title: str, date: str, duration: str, participants: list[str]):
+        print(f"[{self.user_id}/{self.session_id}] Negotiating.")
         message = textwrap.dedent(f"""
-        Try to schedule a meeting based on the following data:
+        Negotiate a time slot for the following meeting:
         - Title: {title}
         - Date: {date}
         - Duration: {duration}
@@ -122,27 +151,27 @@ class BrokerAgent(Team):
 class SecretaryAgent(Agent):
 
     def __init__(self, user_id: str, session_id: str = None):
-        storage = SqliteAgentStorage(
-            table_name="agent_sessions",
-            db_file=DB_FILE,
-        )
+        self.__session_id_without_context = session_id
+        self.__session_id = f"{self.__session_id_without_context}/{self.__class__.__name__}"
+        print(f"[{user_id}/{self.__session_id}] Initializing.")
+
         super().__init__(
             model=OpenAIChat(id=SECRETARY_MODEL),
             user_id=user_id,
-            session_id=session_id,
+            session_id=self.__session_id,
             name=SECRETARY_NAME.format(user_id),
             role=SECRETARY_ROLE.format(user_id),
             instructions=SECRETARY_INSTRUCTIONS,
-            storage=storage,
-            memory=preferences_memory,
+            storage=session_storage_agents,
+            memory=preference_memory,
             enable_agentic_memory=True,
             add_datetime_to_instructions=True,
             add_history_to_messages=True,
             num_history_responses=64,
-            tools=[self.__find_time_slot, self.__schedule_event],
+            tools=[self.__initiate_scheduling, self.__create_event],
         )
 
-    def __find_time_slot(
+    def __initiate_scheduling(
             self,
             title: str,
             date: str,
@@ -150,7 +179,8 @@ class SecretaryAgent(Agent):
             participants: list[str],
     ) -> str:
         """
-        Use this function to find a date and time that works for all participants based on their schedules and preferences.
+        Use this function to initiate the negotiation of a time slot that works for all participants based on their schedules and preferences.
+        In case of success, the result will be an exact time slot. This function call does *not* add the event to calendars.
 
         Args:
             title (str): The meeting title
@@ -159,28 +189,28 @@ class SecretaryAgent(Agent):
             participants (list[str]): The list of meeting participants, each referenced in the form 'U...'
         """
 
-        print("__find_time_slot:")
-        print(title)
-        print(date)
-        print(duration)
-        print(participants)
+        print(f"[{self.user_id}/{self.session_id}] Scheduling event:")
+        print(f"  Title: {title}")
+        print(f"  Date: {date}")
+        print(f"  Duration: {duration}")
+        print(f"  Participants: {participants}")
 
         if self.user_id not in participants:
             participants.append(self.user_id)
 
-        broker = BrokerAgent(session_id=self.session_id, participants=participants)
+        broker = BrokerAgent(user_id=self.user_id, session_id=self.__session_id_without_context, participants=participants)
         broker_answer = broker.find_time_slot(title=title, date=date, duration=duration, participants=participants)
         return broker_answer
 
-    @staticmethod
-    def __schedule_event(
+    def __create_event(
+            self,
             title: str,
             date: str,
             duration: str,
             participants: list[str],
     ) -> str:
         """
-        Use this function to schedule an event, i.e. add it to the participants calendars.
+        Use this function to create calendar events.
 
         Args:
             title (str): The meeting title
@@ -188,19 +218,18 @@ class SecretaryAgent(Agent):
             duration (str): The meeting duration
             participants (list[str]): The list of meeting participants, each referenced in the form 'U...'
         """
+        print(f"[{self.user_id}/{self.session_id}] Creating event:")
+        print(f"  Title: {title}")
+        print(f"  Date: {date}")
+        print(f"  Duration: {duration}")
+        print(f"  Participants: {participants}")
 
         # TODO: Actual implementation
-
-        print("__schedule_event:")
-        print(title)
-        print(date)
-        print(duration)
-        print(participants)
 
         return "Success!"
 
 def publish_app_home(client: WebClient, user_id: str):
-    def build_header() -> list[dict]:
+    def header() -> list[dict]:
         return [
             {
                 "type": "header",
@@ -214,8 +243,7 @@ def publish_app_home(client: WebClient, user_id: str):
                 "type": "divider"
             }
         ]
-
-    def build_preference(preference_id: str, content: str) -> list[dict]:
+    def preference(preference_id: str, content: str) -> list[dict]:
         return [
             {
                 "type": "section",
@@ -256,8 +284,7 @@ def publish_app_home(client: WebClient, user_id: str):
                 "type": "divider"
             }
         ]
-
-    def build_no_preferences_info() -> list[dict]:
+    def no_preferences_info() -> list[dict]:
         return [{
             "type": "section",
             "text": {
@@ -265,19 +292,18 @@ def publish_app_home(client: WebClient, user_id: str):
                 "text": "_There are no preferences memorized yet._"
             }
         }]
-
-    def build_preferences() -> list[dict]:
-        memories = preferences_memory.get_user_memories(user_id=user_id)
-        if len(memories) > 0:
-            return [element for memory in reversed(memories) for element in build_preference(memory.memory_id, memory.memory)]
+    def preferences() -> list[dict]:
+        memories = preference_memory.get_user_memories(user_id=user_id)
+        if memories:
+            return [element for memory in reversed(memories) for element in preference(memory.memory_id, memory.memory)]
         else:
-            return build_no_preferences_info()
+            return no_preferences_info()
 
     client.views_publish(
         user_id=user_id,
         view={
             "type": "home",
-            "blocks": build_header() + build_preferences()
+            "blocks": header() + preferences()
         }
     )
 
@@ -288,12 +314,9 @@ def app_event_app_home_opened(ack: Ack, client: WebClient, event: dict):
         return
 
     user_id = event["user"]
-    print(f"User {user_id} opened the app home.")
+    print(f"[{user_id}] App home opened.")
 
     publish_app_home(client, user_id)
-
-def sanitize_slack_message(message: str):
-    return message.replace("**", "*")
 
 @slack_app.action("delete_preference")
 def handle_some_action(ack: Ack, client: WebClient, action: dict, body: dict):
@@ -301,26 +324,33 @@ def handle_some_action(ack: Ack, client: WebClient, action: dict, body: dict):
 
     user_id = body["user"]["id"]
     preference_id = action["value"]
-    print(f"User {user_id} requested to delete preference {preference_id}.")
+    print(f"[{user_id}] Receiving request for deletion of preference {preference_id}.")
 
-    preferences_memory.delete_user_memory(preference_id, user_id=user_id)
+    preference_memory.delete_user_memory(preference_id, user_id=user_id)
 
     publish_app_home(client, user_id)
 
 @slack_app.event("message")
-def app_event_message_im(client: WebClient, event: dict):
-    print(f"User {event['user']} sent a private message.")
+def app_event_message_im(ack: Ack, client: WebClient, event: dict):
+    def sanitize_slack_message(message: str):
+        return message.replace("**", "*")
 
-    secretary = SecretaryAgent(user_id=event["user"], session_id=event["thread_ts"])
+    ack()
+
+    user_id = event["user"]
+    session_id = event["thread_ts"]
+    print(f"[{user_id}/{session_id}] Receiving message.")
+
+    secretary = SecretaryAgent(user_id=user_id, session_id=session_id)
     response = secretary.run(message=event["text"])
+
+    print(f"[{user_id}/{session_id}] Responding to message.")
     client.chat_postMessage(
         text=sanitize_slack_message(response.content),
         channel=event["channel"],
         thread_ts=event["ts"]
     )
 
-
 slack_handler.start()
 
-# TODO: Correct session handling.
 # TODO: Make use of Workflows.

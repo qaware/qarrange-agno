@@ -53,13 +53,35 @@ The goal is to assist users with finding time slots for meetings given the follo
 - Facilitate deployment to a cloud via proper Docker setup
 - Proper structuring of the Python project
 
-## Screenshots
+## Example screenshots
 
 ![screenshot-0.png](screenshot-0.png)
 
 ![screenshot-1.png](screenshot-1.png)
 
-![screenshot-2.png](screenshot-2.png)
+## Example logs
+
+```
+⚡️ Bolt app is running!
+[U08FBNWBJKU] App home opened.
+[U08FBNWBJKU/1746633981.842939] Receiving message.
+[U08FBNWBJKU/1746633981.842939/SecretaryAgent] Initializing.
+[U08FBNWBJKU/1746633981.842939/SecretaryAgent] Scheduling event:
+  Title: AI Session
+  Date: next Friday
+  Duration: 2 hours
+  Participants: ['U08FBNWBJKU', 'U054L5MPJA2']
+[U08FBNWBJKU/1746633981.842939/BrokerAgent] Initializing.
+[U08FBNWBJKU/1746633981.842939/UserAgent/U08FBNWBJKU] Initializing.
+[U08FBNWBJKU/1746633981.842939/UserAgent/U054L5MPJA2] Initializing.
+[U08FBNWBJKU/1746633981.842939/BrokerAgent] Negotiating.
+[U08FBNWBJKU/1746633981.842939/SecretaryAgent] Creating event:
+  Title: AI Session
+  Date: 2025-05-09T09:00:00
+  Duration: 2 hours
+  Participants: ['U08FBNWBJKU', 'U054L5MPJA2']
+[U08FBNWBJKU/1746633981.842939] Responding to message.
+```
 
 ## Local execution
 
