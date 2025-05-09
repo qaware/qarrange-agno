@@ -49,9 +49,8 @@ The goal is to assist users with finding time slots for meetings given the follo
 ## Possible next steps
 
 - Calendar integration (currently mocked)
-- Slack integration for feedback to the participants after successful scheduling
+- Feedback to the other participants after successful scheduling
 - Facilitate deployment to a cloud via proper Docker setup
-- Proper structuring of the Python project
 
 ## Example screenshots
 
