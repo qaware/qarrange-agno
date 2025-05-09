@@ -1,3 +1,3 @@
-agno[models,mcp,sqlite]~=1.4.4
+agno[models,mcp,sqlite]~=1.4.5
 slack_bolt~=1.23.0
 slack_sdk~=3.35.0
