@@ -175,12 +175,12 @@ def register_handlers(slack_app: App):
         ack()
 
         user_id = event["user"]
-        session_id = event["thread_ts"]
-        print(f"[{user_id}/{session_id}] Receiving message.")
+        session_id = event["thread_ts"].replace(".", "")
+        print(f"[{user_id}-{session_id}] Receiving message.")
 
         response = handle_request(user_id=user_id, session_id=session_id, message=event["text"])
 
-        print(f"[{user_id}/{session_id}] Responding to message.")
+        print(f"[{user_id}-{session_id}] Responding to message.")
         client.chat_postMessage(
             text=sanitize_slack_message(response),
             channel=event["channel"],

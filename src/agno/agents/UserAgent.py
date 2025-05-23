@@ -8,51 +8,58 @@ from src.agno.agents import preference_memory, agent_session_storage
 from src.database.service import fetch_email
 from src.google.calendar import GoogleCalendar
 
-USER_MODEL = "gpt-4.1"
-USER_NAME = "Calendar User Agent for {}"
-USER_ROLE = "Represent user {} in front of the Calendar Broker Agent."
-USER_INSTRUCTIONS = [
-    "The Calendar Broker Agent will ask you to provide available time slots for the user you represent.",
+AGENT_MODEL = "gpt-4.1"
+AGENT_NAME = "User Agent {}"
+AGENT_DESCRIPTION = "Negotiate time slots for calendar event with user agents representing the participants."
+AGENT_INSTRUCTIONS = [
+    "The Calendar Broker Agent will inquire about the user's availability on specific days and times.",
     "Remember that you do not interact with the user, but with the Calendar Broker Agent.",
     "Negotiate based on existing events and blockers in the calendar of your user.",
     "Take preferences of the user into account, such as typical working hours.",
     "Be cooperative and facilitate compromises.",
-    "OFFER and ENCOURAGE your user's events to be overwritten if their preference allow it.",
-    "Assume standard working hours from 9 AM to 12 PM and 1 PM to 5 PM, if no preference says otherwise.",
-    "12 PM to 13 PM is lunch time where no meetings are allowed, if no preference says otherwise.",
+    "OFFER and ENCOURAGE your user's events to be overwritten, BUT ONLY IF THEIR PREFERENCES SAY SO (e.g. 'meetings of type X are unimportant and may be overwritten').",
+    "RESPECT THE STANDARD WORKING HOURS from 9 AM to 12 PM and 1 PM to 5 PM, IF no preference says otherwise.",
+    "12 PM to 13 PM is LUNCH TIME where NO MEETINGS ARE ALLOWED, IF no preference says otherwise.",
 ]
+AGENT_ROLE = "Represent user {} to the Calendar Broker Agent."
 
 
 class UserAgent(Agent):
-    def __init__(self, user_id: str, session_id: str, participant: str) -> None:
-
-        additional_context = "Preferences of user:\n"
-        memories = preference_memory.get_user_memories(participant)
-        for memory in memories:
-            additional_context += f"- {memory.memory}\n"
-        if not memories:
-            additional_context += "None."
-
+    def __init__(
+            self, *,
+            participant_user_id: str,
+            initiator_user_id: str | None = None,
+            session_id: str | None = None
+    ) -> None:
         self._session_id_without_context = session_id
-        self._session_id = f"{self._session_id_without_context}/{self.__class__.__name__}/{participant}"
-        self._calendar = GoogleCalendar(fetch_email(participant))
+        self._participant_user_id = participant_user_id
+        self._calendar = GoogleCalendar(fetch_email(participant_user_id))
+        self.agent_id = f"{self.__class__.__name__}-{self._participant_user_id}"
+        self.session_id = f"{self._session_id_without_context}-{self.agent_id}"
 
-        print(f"[{user_id}/{self._session_id}] Initializing.")
+        print(f"[{initiator_user_id}-{self.session_id}] Initializing.")
 
         super().__init__(
-            model=OpenAIChat(id=USER_MODEL),
-            user_id=user_id,
-            session_id=self._session_id,
-            name=USER_NAME.format(participant),
-            role=USER_ROLE.format(participant),
-            instructions=USER_INSTRUCTIONS,
-            additional_context=additional_context,
+            model=OpenAIChat(id=AGENT_MODEL),
+            name=AGENT_NAME.format(self._participant_user_id),
+            role=AGENT_ROLE.format(self._participant_user_id),
+            instructions=AGENT_INSTRUCTIONS,
+            agent_id=self.agent_id,
+            user_id=initiator_user_id,
+            session_id=self.session_id,
+            session_name=self.session_id,
+            context={"user_preferences": self._get_user_preferences},
+            add_context=True,
             storage=agent_session_storage,
             add_datetime_to_instructions=True,
             add_history_to_messages=True,
             num_history_responses=64,
-            tools=[self._read_calendar]
+            tools=[self._read_calendar],
+            show_tool_calls=True
         )
+
+    def _get_user_preferences(self) -> list[str]:
+        return [memory.memory for memory in reversed(preference_memory.get_user_memories(self._participant_user_id))]
 
     def _read_calendar(
             self,
@@ -70,7 +77,7 @@ class UserAgent(Agent):
         if not self._calendar.is_correctly_configured():
             raise AgentRunException("Calendar not configured for user.")
 
-        print(f"[{self.user_id}/{self.session_id}] Reading calendar at {lookup_date}.")
+        print(f"[{self.user_id}-{self.session_id}] Reading calendar at {lookup_date}.")
 
         events = self._calendar.fetch_blocker_events(date.fromisoformat(lookup_date))
         return [

@@ -1,4 +1,5 @@
 *.secret
 *.db*
-/.idea/
-/.venv/
+/.idea
+/.venv
+/agent-ui

@@ -9,10 +9,10 @@ from src.agno.agents.BrokerAgent import BrokerAgent
 from src.database.service import fetch_email
 from src.google.calendar import GoogleCalendar
 
-SECRETARY_MODEL = "gpt-4.1"
-SECRETARY_NAME = "Calendar Secretary Agent talking to {}"
-SECRETARY_ROLE = "Process requests from {} for the scheduling of meetings."
-SECRETARY_INSTRUCTIONS = [
+AGENT_MODEL = "gpt-4.1"
+AGENT_NAME = "Secretary Agent"
+AGENT_DESCRIPTION = "Process requests for the scheduling of meetings and memorize user preferences."
+AGENT_INSTRUCTIONS = [
     "Process requests from the user to establish a new calendar event.",
     "The request must contain a meeting title.",
     "The request must contain some form of date. NO PRECISE DATE AND TIME ARE REQUIRED. VAGUE STATEMENTS LIKE 'anytime next week' OR 'tomorrow afternoon' ARE TOTALLY FINE!",
@@ -27,20 +27,26 @@ SECRETARY_INSTRUCTIONS = [
 
 class SecretaryAgent(Agent):
 
-    def __init__(self, user_id: str, session_id: str = None) -> None:
+    def __init__(
+            self, *,
+            user_id: str | None = None,
+            session_id: str | None = None
+    ) -> None:
         self._session_id_of_caller_context = session_id
-        self.session_id = f"{self._session_id_of_caller_context}/{self.__class__.__name__}"
+        self.session_id = f"{self._session_id_of_caller_context}-{self.__class__.__name__}"
         self._calendar = GoogleCalendar(fetch_email(user_id))
 
-        print(f"[{user_id}/{self.session_id}] Initializing.")
+        print(f"[{user_id}-{self.session_id}] Initializing.")
 
         super().__init__(
-            model=OpenAIChat(id=SECRETARY_MODEL),
+            model=OpenAIChat(id=AGENT_MODEL),
+            name=AGENT_NAME,
+            description=AGENT_DESCRIPTION,
+            instructions=AGENT_INSTRUCTIONS,
+            agent_id=self.__class__.__name__,
             user_id=user_id,
             session_id=self.session_id,
-            name=SECRETARY_NAME.format(user_id),
-            role=SECRETARY_ROLE.format(user_id),
-            instructions=SECRETARY_INSTRUCTIONS,
+            session_name=self.session_id, # TODO: https://github.com/agno-agi/agno/issues/3328
             storage=agent_session_storage,
             memory=preference_memory,
             enable_agentic_memory=True,
@@ -48,6 +54,7 @@ class SecretaryAgent(Agent):
             add_history_to_messages=True,
             num_history_responses=64,
             tools=[self._initiate_scheduling, self._create_event],
+            show_tool_calls=True
         )
 
     def _initiate_scheduling(
@@ -71,7 +78,7 @@ class SecretaryAgent(Agent):
             str: The answer of the broker agent containing the negotiated time slot
         """
 
-        print(f"[{self.user_id}/{self.session_id}] Initialize scheduling of event:")
+        print(f"[{self.user_id}-{self.session_id}] Initialize scheduling of event:")
         print(f"  Title: {title}")
         print(f"  Date: {date}")
         print(f"  Duration: {duration}")
@@ -110,7 +117,7 @@ class SecretaryAgent(Agent):
         if not self._calendar.is_correctly_configured():
             raise AgentRunException("Calendar not configured for user.")
 
-        print(f"[{self.user_id}/{self.session_id}] Creating event.")
+        print(f"[{self.user_id}-{self.session_id}] Creating event.")
 
         return self._calendar.create_event(
             title=title,

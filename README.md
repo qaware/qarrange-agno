@@ -24,6 +24,7 @@ The goal is to assist users with finding time slots for meetings given the follo
 - [Agno](https://github.com/agno-agi/agno)
 - [slack-sdk](https://pypi.org/project/slack-sdk)
 - [slack-bolt](https://pypi.org/project/slack-bolt) (in socket mode)
+- Google Calendar
 - SQLite (session storage, long-term memory)
 - OpenAI language models
 
@@ -51,6 +52,8 @@ The goal is to assist users with finding time slots for meetings given the follo
 - Enable calendar event creation (requires domain-wide delegation authority).
 - Facilitate deployment to a cloud via proper Docker setup.
 - Implement asynchronously for productive use.
+- Realize calendar integration via MCP. 
+- Use Agno's "human in the loop" feature for confirmation requests.
 
 ## Example screenshots
 
@@ -119,6 +122,22 @@ permitted to assume the role "Service Account Token Creator".
 ```shell
 python main.py
 ```
+
+### Observability
+
+Run the Agno Playground back end:
+```shell
+python playground.py
+```
+
+In another terminal, run the Agno Playground front end:
+```shell
+npx create-agent-ui@latest
+npm --prefix agent-ui run dev
+```
+
+Note that the Broker Agent's interactions cannot be visualized yet 
+(see [issue](https://github.com/agno-agi/agent-ui/issues/87)).
 
 ## References
 

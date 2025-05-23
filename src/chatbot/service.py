@@ -3,7 +3,7 @@ from src.agno.agents.SecretaryAgent import SecretaryAgent
 
 
 def handle_request(user_id: str, session_id: str, message: str) -> str:
-    return SecretaryAgent(user_id=user_id, session_id=session_id).run(message=message).content
+    return SecretaryAgent(user_id=user_id, session_id=session_id).run(message=f"{user_id}: {message}").content
 
 
 def recall_preferences(user_id: str) -> dict[str, str]:

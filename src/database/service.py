@@ -1,6 +1,10 @@
 from src.database import session, UserSettings
 
 
+def list_all_user_ids() -> list[str]:
+    return [str(entry[0]) for entry in session.query(UserSettings.user_id).distinct()]
+
+
 def fetch_email(user_id: str) -> str | None:
     entry = session.query(UserSettings).filter_by(user_id=user_id).first()
     return entry.email if entry else None
