@@ -10,6 +10,6 @@ SLACK_APP_TOKEN = os.getenv("SLACK_APP_TOKEN")
 
 if __name__ == "__main__":
     slack_app = App(token=SLACK_BOT_TOKEN)
-    slack_handler = SocketModeHandler(slack_app, app_token=SLACK_APP_TOKEN)
     register_handlers(slack_app)
+    slack_handler = SocketModeHandler(slack_app, app_token=SLACK_APP_TOKEN)
     slack_handler.start()

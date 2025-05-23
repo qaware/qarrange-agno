@@ -48,9 +48,9 @@ The goal is to assist users with finding time slots for meetings given the follo
 
 ## Possible next steps
 
-- Calendar integration (currently mocked)
-- Feedback to the other participants after successful scheduling
-- Facilitate deployment to a cloud via proper Docker setup
+- Enable calendar event creation (requires domain-wide delegation authority).
+- Facilitate deployment to a cloud via proper Docker setup.
+- Implement asynchronously for productive use.
 
 ## Example screenshots
 
@@ -62,24 +62,28 @@ The goal is to assist users with finding time slots for meetings given the follo
 
 ```
 ⚡️ Bolt app is running!
-[U08FBNWBJKU] App home opened.
-[U08FBNWBJKU/1746633981.842939] Receiving message.
-[U08FBNWBJKU/1746633981.842939/SecretaryAgent] Initializing.
-[U08FBNWBJKU/1746633981.842939/SecretaryAgent] Scheduling event:
+[SLACKUSERA] App home opened.
+[SLACKUSERA/1747988191] Receiving message.
+[SLACKUSERA/1747988191/SecretaryAgent] Initializing.
+[SLACKUSERA/1747988191/SecretaryAgent] Initialize scheduling of event:
   Title: AI Session
-  Date: next Friday
+  Date: next Thursday
   Duration: 2 hours
-  Participants: ['U08FBNWBJKU', 'U054L5MPJA2']
-[U08FBNWBJKU/1746633981.842939/BrokerAgent] Initializing.
-[U08FBNWBJKU/1746633981.842939/UserAgent/U08FBNWBJKU] Initializing.
-[U08FBNWBJKU/1746633981.842939/UserAgent/U054L5MPJA2] Initializing.
-[U08FBNWBJKU/1746633981.842939/BrokerAgent] Negotiating.
-[U08FBNWBJKU/1746633981.842939/SecretaryAgent] Creating event:
-  Title: AI Session
-  Date: 2025-05-09T09:00:00
-  Duration: 2 hours
-  Participants: ['U08FBNWBJKU', 'U054L5MPJA2']
-[U08FBNWBJKU/1746633981.842939] Responding to message.
+  Participants: ['SLACKUSERA', 'SLACKUSERB']
+[SLACKUSERA/1747988191/BrokerAgent] Initializing.
+[SLACKUSERA/1747988191/UserAgent/SLACKUSERA] Initializing.
+[SLACKUSERA/1747988191/UserAgent/SLACKUSERB] Initializing.
+[SLACKUSERA/1747988191/BrokerAgent] Negotiating.
+[SLACKUSERA/1747988191/UserAgent/SLACKUSERA] Reading calendar at 2025-05-29.
+[GoogleCalendar] Fetching blocker events at 2025-05-29 from calendar user-a@google.com.
+[GoogleCalendar] Fetched 2 blocker events.
+[SLACKUSERA/1747988191/UserAgent/SLACKUSERB] Reading calendar at 2025-05-29.
+[GoogleCalendar] Fetching blocker events at 2025-05-29 from calendar user-b@google.com.
+[GoogleCalendar] Fetched 1 blocker events.
+[SLACKUSERA/1747988191/SecretaryAgent] Creating event.
+[GoogleCalendar] Creating event in calendar user-a@google.com: {'summary': 'AI Session', 'description': 'Created by QArrange.', 'start': {'dateTime': '2025-05-29T13:00:00+02:00'}, 'end': {'dateTime': '2025-05-29T15:00:00+02:00'}}
+[GoogleCalendar] Created event:  https://www.google.com/calendar/event?eid=my-event
+[SLACKUSERA/1747988191] Responding to message.
 ```
 
 ## Local execution
@@ -106,6 +110,10 @@ SLACK_BOT_TOKEN=xoxb-...
 OPENAI_API_KEY=sk-proj-...
 ```
 
+Furthermore, store credentials for a Google Cloud service account in
+[google-calendar-service-account.json.secret](./google-calendar-service-account.json.secret). The account must be
+permitted to assume the role "Service Account Token Creator".
+
 ### Execution
 
 ```shell
@@ -123,3 +131,7 @@ python main.py
 - https://api.slack.com/docs
 - https://tools.slack.dev/bolt-python
 - https://app.slack.com/block-kit-builder
+
+### Google
+
+- https://developers.google.com/workspace/calendar/api/v3/reference

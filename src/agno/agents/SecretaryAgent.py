@@ -1,8 +1,13 @@
+from datetime import datetime, timedelta
+
 from agno.agent import Agent
+from agno.exceptions import AgentRunException
 from agno.models.openai import OpenAIChat
 
-from src.agno.agents import session_storage_agents, preference_memory
+from src.agno.agents import agent_session_storage, preference_memory
 from src.agno.agents.BrokerAgent import BrokerAgent
+from src.database.service import fetch_email
+from src.google.calendar import GoogleCalendar
 
 SECRETARY_MODEL = "gpt-4.1"
 SECRETARY_NAME = "Calendar Secretary Agent talking to {}"
@@ -22,28 +27,30 @@ SECRETARY_INSTRUCTIONS = [
 
 class SecretaryAgent(Agent):
 
-    def __init__(self, user_id: str, session_id: str = None):
-        self.__session_id_without_context = session_id
-        self.__session_id = f"{self.__session_id_without_context}/{self.__class__.__name__}"
-        print(f"[{user_id}/{self.__session_id}] Initializing.")
+    def __init__(self, user_id: str, session_id: str = None) -> None:
+        self._session_id_of_caller_context = session_id
+        self.session_id = f"{self._session_id_of_caller_context}/{self.__class__.__name__}"
+        self._calendar = GoogleCalendar(fetch_email(user_id))
+
+        print(f"[{user_id}/{self.session_id}] Initializing.")
 
         super().__init__(
             model=OpenAIChat(id=SECRETARY_MODEL),
             user_id=user_id,
-            session_id=self.__session_id,
+            session_id=self.session_id,
             name=SECRETARY_NAME.format(user_id),
             role=SECRETARY_ROLE.format(user_id),
             instructions=SECRETARY_INSTRUCTIONS,
-            storage=session_storage_agents,
+            storage=agent_session_storage,
             memory=preference_memory,
             enable_agentic_memory=True,
             add_datetime_to_instructions=True,
             add_history_to_messages=True,
             num_history_responses=64,
-            tools=[self.__initiate_scheduling, self.__create_event],
+            tools=[self._initiate_scheduling, self._create_event],
         )
 
-    def __initiate_scheduling(
+    def _initiate_scheduling(
             self,
             title: str,
             date: str,
@@ -56,12 +63,15 @@ class SecretaryAgent(Agent):
 
         Args:
             title (str): The meeting title
-            date x(str): The desired meeting date, possibly very vaguely
+            date (str): The meeting date (can be vague, e.g. 'anytime next week' or 'tomorrow afternoon')
             duration (str): The meeting duration
             participants (list[str]): The list of meeting participants, each referenced in the form 'U...'
+
+        Returns:
+            str: The answer of the broker agent containing the negotiated time slot
         """
 
-        print(f"[{self.user_id}/{self.session_id}] Scheduling event:")
+        print(f"[{self.user_id}/{self.session_id}] Initialize scheduling of event:")
         print(f"  Title: {title}")
         print(f"  Date: {date}")
         print(f"  Duration: {duration}")
@@ -70,16 +80,18 @@ class SecretaryAgent(Agent):
         if self.user_id not in participants:
             participants.append(self.user_id)
 
-        broker = BrokerAgent(user_id=self.user_id, session_id=self.__session_id_without_context,
-                             participants=participants)
-        broker_answer = broker.find_time_slot(title=title, date=date, duration=duration, participants=participants)
-        return broker_answer
+        broker = BrokerAgent(
+            user_id=self.user_id,
+            session_id=self._session_id_of_caller_context,
+            participants=participants
+        )
+        return broker.find_time_slot(title=title, date=date, duration=duration, participants=participants)
 
-    def __create_event(
+    def _create_event(
             self,
             title: str,
-            date: str,
-            duration: str,
+            start_datetime: str,
+            duration_minutes: int,
             participants: list[str],
     ) -> str:
         """
@@ -87,16 +99,22 @@ class SecretaryAgent(Agent):
 
         Args:
             title (str): The meeting title
-            date x(str): The exact meeting date
-            duration (str): The meeting duration
+            start_datetime (str): The exact meeting date and time in format 'YYYY-MM-DDTHH:MM:SS'
+            duration_minutes (int): The meeting duration in minutes
             participants (list[str]): The list of meeting participants, each referenced in the form 'U...'
+
+        Returns:
+            str: The web url of the created event.
         """
-        print(f"[{self.user_id}/{self.session_id}] Creating event:")
-        print(f"  Title: {title}")
-        print(f"  Date: {date}")
-        print(f"  Duration: {duration}")
-        print(f"  Participants: {participants}")
 
-        # TODO: Actual implementation
+        if not self._calendar.is_correctly_configured():
+            raise AgentRunException("Calendar not configured for user.")
 
-        return "Success!"
+        print(f"[{self.user_id}/{self.session_id}] Creating event.")
+
+        return self._calendar.create_event(
+            title=title,
+            start_datetime=datetime.fromisoformat(start_datetime),
+            end_datetime=datetime.fromisoformat(start_datetime) + timedelta(minutes=duration_minutes),
+            participants_emails=[fetch_email(participant) for participant in participants]
+        )

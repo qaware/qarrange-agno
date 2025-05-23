@@ -1,7 +1,7 @@
 from agno.models.openai import OpenAIChat
 from agno.team import Team
 
-from src.agno.agents import session_storage_teams
+from src.agno.agents import team_sessions_storage
 from src.agno.agents.UserAgent import UserAgent
 
 BROKER_MODEL = "o4-mini"
@@ -13,6 +13,7 @@ BROKER_INSTRUCTIONS = [
     "Negotiate back and forth until consensus on a time slot is achieved.",
     "Reiterate the inquiries with the agents in case of conflicts, asking for suggested alternatives and compromises.",
     "IN CASE OF CONFLICTS, DO NOT IMMEDIATELY RESPOND TO THE CALLER! Instead, continue to negotiate with the Calendar User Agents.",
+    "If Calendar User Agents indicate that some of their user's existing blockers may be overwritten, MAKE USE OF THIS OFFER, without checking back.",
     "Once you have achieved consensus, immediately report back to the caller. No need to inform the Calendar User Agents about the outcome.",
     "Your goal is to provide the caller with a final result (a definite time slot), not with choices.",
 ]
@@ -21,27 +22,35 @@ BROKER_SUCCESS_CRITERIA = "Achieve consensus on a meeting date and time or, as a
 
 class BrokerAgent(Team):
 
-    def __init__(self, *, user_id: str, session_id: str, participants: list[str]):
-        self.__session_id_without_context = session_id
-        self.__session_id = f"{self.__session_id_without_context}/{self.__class__.__name__}"
-        print(f"[{user_id}/{self.__session_id}] Initializing.")
+    def __init__(self, *, user_id: str, session_id: str, participants: list[str]) -> None:
+        self._session_id_without_context = session_id
+        self.session_id = f"{self._session_id_without_context}/{self.__class__.__name__}"
 
-        members = [UserAgent(user_id, self.__session_id_without_context, participant) for participant in participants]
+        print(f"[{user_id}/{self.session_id}] Initializing.")
+
+        members = [
+            UserAgent(
+                user_id=user_id,
+                session_id=self._session_id_without_context,
+                participant=participant
+            )
+            for participant in participants
+        ]
         super().__init__(
             model=OpenAIChat(id=BROKER_MODEL),
             mode="coordinate",
             user_id=user_id,
-            session_id=self.__session_id,
+            session_id=self.session_id,
             name=BROKER_NAME,
             description=BROKER_DESCRIPTION,
             instructions=BROKER_INSTRUCTIONS,
             success_criteria=BROKER_SUCCESS_CRITERIA,
-            storage=session_storage_teams,
+            storage=team_sessions_storage,
             add_datetime_to_instructions=True,
             members=members
         )
 
-    def find_time_slot(self, *, title: str, date: str, duration: str, participants: list[str]):
+    def find_time_slot(self, *, title: str, date: str, duration: str, participants: list[str]) -> str:
         print(f"[{self.user_id}/{self.session_id}] Negotiating.")
         message = "Negotiate a time slot for the following meeting:"
         message += f"- Title: {title}"
