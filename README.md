@@ -49,8 +49,9 @@ The goal is to assist users with finding time slots for meetings given the follo
 
 ## Possible next steps
 
-- Enable calendar event creation (requires domain-wide delegation authority).
 - Facilitate deployment to a cloud via proper Docker setup.
+- Include participants in created calendar events (requires domain-wide delegation authority).
+- Respect national holidays.
 - Implement asynchronously for productive use.
 - Realize calendar integration via MCP. 
 - Use Agno's "human in the loop" feature for confirmation requests.
@@ -93,7 +94,7 @@ The goal is to assist users with finding time slots for meetings given the follo
 
 ### First-time setup
 
-Make sure to have `python3.10` available, e.g. via `brew install python@3.10` on macOS. Using this version is a
+Make sure to have `python3.10` available, e.g., via `brew install python@3.10` on macOS. Using this version is a
 workaround for an issue similar to [this](https://github.com/resemble-ai/resemble-enhance/issues/52).
 
 ```shell

@@ -74,21 +74,18 @@ class GoogleCalendar:
             'end': {
                 'dateTime': end_datetime.isoformat(timespec="seconds"),
             },
-            # TODO: Requires domain-wide delegation enabled for service account
+            # TODO: Disabled for now, requires domain-wide delegation enabled for service account
             # 'attendees': [{'email': email} for email in participants_emails]
         }
 
         print(f"[GoogleCalendar] Creating event in calendar {self._calendar_id}: {event}")
 
         # https://developers.google.com/workspace/calendar/api/v3/reference/events/insert
-        # TODO: Disabled for testing purposes
-        # created_event = self.service.events().insert(
-        #     calendarId=self.calendar_id,
-        #     body=event,
-        #     sendUpdates='all'
-        # ).execute()
-
-        created_event = {"htmlLink": " https://www.google.com/calendar/event?eid=my-event"}
+        created_event = self.service.events().insert(
+            calendarId=self._calendar_id,
+            body=event,
+            sendUpdates='all'
+        ).execute()
 
         print(f"[GoogleCalendar] Created event: {created_event.get('htmlLink')}")
 

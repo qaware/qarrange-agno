@@ -1,5 +1,6 @@
-agno[models,mcp,sqlite,dev]~=1.5.3
+agno[models,mcp,sqlite,dev]~=1.5.5
 slack_bolt~=1.23.0
 slack_sdk~=3.35.0
 google-api-python-client~=2.170.0
+google-auth~=2.40.2
 sqlalchemy~=2.0.41

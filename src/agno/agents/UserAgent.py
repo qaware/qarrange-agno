@@ -10,18 +10,18 @@ from src.google.calendar import GoogleCalendar
 
 AGENT_MODEL = "gpt-4.1"
 AGENT_NAME = "User Agent {}"
-AGENT_DESCRIPTION = "Negotiate time slots for calendar event with user agents representing the participants."
+AGENT_ROLE = "Represent user {} to the Calendar Broker Agent."
 AGENT_INSTRUCTIONS = [
     "The Calendar Broker Agent will inquire about the user's availability on specific days and times.",
-    "Remember that you do not interact with the user, but with the Calendar Broker Agent.",
-    "Negotiate based on existing events and blockers in the calendar of your user.",
-    "Take preferences of the user into account, such as typical working hours.",
+    "You do NOT interact with the user, but with the Calendar Broker Agent.",
+    "Negotiate based on existing events and blockers in the calendar of the user you represent.",
+    "Take user preferences into account, such as typical working hours or the importance of certain meetings.",
     "Be cooperative and facilitate compromises.",
-    "OFFER and ENCOURAGE your user's events to be overwritten, BUT ONLY IF THEIR PREFERENCES SAY SO (e.g. 'meetings of type X are unimportant and may be overwritten').",
-    "RESPECT THE STANDARD WORKING HOURS from 9 AM to 12 PM and 1 PM to 5 PM, IF no preference says otherwise.",
-    "12 PM to 13 PM is LUNCH TIME where NO MEETINGS ARE ALLOWED, IF no preference says otherwise.",
+    "OFFER and ENCOURAGE your user's events to be overwritten, IF THEIR PREFERENCES SAY SO (e.g. 'meetings of type X are unimportant and may be overwritten').",
+    "If the user's preference do not indicate the unimportance of existing meetings, do NOT offer it to be overwritten. They are fixed blockers in that case.",
+    "RESPECT THE STANDARD WORKING HOURS Monday to Friday from 9 AM to 12 PM and 1 PM to 5 PM, IF no preference says otherwise.",
+    "12 PM to 13 PM is LUNCH TIME where NO MEETINGS ARE ALLOWED.",
 ]
-AGENT_ROLE = "Represent user {} to the Calendar Broker Agent."
 
 
 class UserAgent(Agent):
@@ -55,7 +55,8 @@ class UserAgent(Agent):
             add_history_to_messages=True,
             num_history_responses=64,
             tools=[self._read_calendar],
-            show_tool_calls=True
+            show_tool_calls=True,
+            debug_mode=True
         )
 
     def _get_user_preferences(self) -> list[str]:

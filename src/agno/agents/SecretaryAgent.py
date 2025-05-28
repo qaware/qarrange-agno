@@ -11,7 +11,7 @@ from src.google.calendar import GoogleCalendar
 
 AGENT_MODEL = "gpt-4.1"
 AGENT_NAME = "Secretary Agent"
-AGENT_DESCRIPTION = "Process requests for the scheduling of meetings and memorize user preferences."
+AGENT_DESCRIPTION = "Process user requests for the scheduling of meetings and memorize user preferences."
 AGENT_INSTRUCTIONS = [
     "Process requests from the user to establish a new calendar event.",
     "The request must contain a meeting title.",
@@ -21,7 +21,7 @@ AGENT_INSTRUCTIONS = [
     "If any of the required information is missing, query it from the user.",
     "As soon as all required information is collected, summarize it and ask for confirmation.",
     "Once confirmed, initiate the scheduling of the meeting.",
-    "If the scheduling succeeded, add the event to the participants' calendars.",
+    "If the scheduling succeeded, add the event to the participants' calendars and provide the event URL to the user.",
 ]
 
 
@@ -54,7 +54,8 @@ class SecretaryAgent(Agent):
             add_history_to_messages=True,
             num_history_responses=64,
             tools=[self._initiate_scheduling, self._create_event],
-            show_tool_calls=True
+            show_tool_calls=True,
+            debug_mode=True
         )
 
     def _initiate_scheduling(
@@ -111,7 +112,7 @@ class SecretaryAgent(Agent):
             participants (list[str]): The list of meeting participants, each referenced in the form 'U...'
 
         Returns:
-            str: The web url of the created event.
+            str: The web URL of the created event
         """
 
         if not self._calendar.is_correctly_configured():

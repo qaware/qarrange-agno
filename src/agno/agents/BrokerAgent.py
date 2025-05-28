@@ -6,16 +6,16 @@ from src.agno.agents.UserAgent import UserAgent
 
 AGENT_MODEL = "o4-mini"
 AGENT_NAME = "Broker Agent"
-AGENT_DESCRIPTION = "Negotiate time slots for calendar event with user agents representing the participants."
+AGENT_DESCRIPTION = "Negotiate date and time for a meeting with multiple participants, represented by their respective User Agent (your team members)."
 AGENT_INSTRUCTIONS = [
-    "Receive requests to find a time slot for a meeting with specified participants.",
-    "Query each participant's Calendar User Agent for available time slots.",
-    "Negotiate back and forth until consensus on a time slot is achieved.",
+    "Receive requests to find a suitable date and time for a meeting with specified participants.",
+    "Query each participant's availability from their respective Calendar User Agent.",
+    "Negotiate back and forth until consensus on a date and time is reached.",
     "Reiterate the inquiries with the agents in case of conflicts, asking for suggested alternatives and compromises.",
     "IN CASE OF CONFLICTS, DO NOT IMMEDIATELY RESPOND TO THE CALLER! Instead, continue to negotiate with the Calendar User Agents.",
     "If Calendar User Agents indicate that some of their user's existing blockers may be overwritten, MAKE USE OF THIS OFFER, without checking back.",
     "Once you have achieved consensus, immediately report back to the caller. No need to inform the Calendar User Agents about the outcome.",
-    "Your goal is to provide the caller with a final result (a definite time slot), not with choices.",
+    "Your goal is to provide the caller with a final result (a definite date and time), not with choices. MAKE A DECISION!",
 ]
 AGENT_SUCCESS_CRITERIA = "A consensus on meeting date and time is reached, or it is definitively determined that no common time slot exists."
 
@@ -58,14 +58,16 @@ class BrokerAgent(Team):
             read_team_history=True, # effect unclear
             enable_team_history=True, # effect unclear
             num_history_runs=64, # effect unclear
-            add_member_tools_to_system_message=False
+            add_member_tools_to_system_message=False,
+            show_tool_calls=True,
+            debug_mode=True
         )
 
     def find_time_slot(self, *, title: str, date: str, duration: str, participants: list[str]) -> str:
         print(f"[{self.user_id}-{self.session_id}] Negotiating.")
-        message = "Negotiate a time slot for the following meeting:"
-        message += f"- Title: {title}"
-        message += f"- Date: {date}"
-        message += f"- Duration: {duration}"
+        message = "Negotiate a time slot for the following meeting:\n"
+        message += f"- Title: {title}\n"
+        message += f"- Date: {date}\n"
+        message += f"- Duration: {duration}\n"
         message += f"- Participants: {', '.join(participants)}"
         return super().run(message).content
