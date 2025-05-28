@@ -40,7 +40,7 @@ class GoogleCalendar:
             eventTypes=["default", "focusTime", "fromGmail", "outOfOffice"],
             timeMin=datetime.combine(lookup_date, time.min, tzinfo=TIMEZONE).isoformat(timespec="seconds"),
             timeMax=datetime.combine(lookup_date, time.max, tzinfo=TIMEZONE).isoformat(timespec="seconds"),
-            timeZone=TIMEZONE,
+            timeZone=TIMEZONE.key,
             singleEvents=True,
             orderBy='startTime'
         ).execute()
