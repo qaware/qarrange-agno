@@ -1,5 +1,4 @@
-from agno.app.playground.app import Playground
-from agno.app.playground.serve import serve_playground_app
+from agno.playground import Playground, serve_playground_app
 
 from src.agno.agents.BrokerAgent import BrokerAgent
 from src.agno.agents.SecretaryAgent import SecretaryAgent
