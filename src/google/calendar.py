@@ -16,7 +16,7 @@ class GoogleCalendar:
             SERVICE_ACCOUNT_FILE,
             scopes=SCOPES
         )
-        self.service = build('calendar', 'v3', credentials=credentials)
+        self._service = build('calendar', 'v3', credentials=credentials)
         self._calendar_id = calendar_id
 
     def is_correctly_configured(self) -> bool:
@@ -35,7 +35,7 @@ class GoogleCalendar:
         print(f"[GoogleCalendar] Fetching blocker events at {lookup_date} from calendar {self._calendar_id}.")
 
         # https://developers.google.com/workspace/calendar/api/v3/reference/events/list
-        events_result = self.service.events().list(
+        events_result = self._service.events().list(
             calendarId=self._calendar_id,
             eventTypes=["default", "focusTime", "fromGmail", "outOfOffice"],
             timeMin=datetime.combine(lookup_date, time.min, tzinfo=TIMEZONE).isoformat(timespec="seconds"),
@@ -81,7 +81,7 @@ class GoogleCalendar:
         print(f"[GoogleCalendar] Creating event in calendar {self._calendar_id}: {event}")
 
         # https://developers.google.com/workspace/calendar/api/v3/reference/events/insert
-        created_event = self.service.events().insert(
+        created_event = self._service.events().insert(
             calendarId=self._calendar_id,
             body=event,
             sendUpdates='all'
