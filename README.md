@@ -16,21 +16,13 @@ The goal is to assist users with finding time slots for meetings given the follo
 - The chatbot can be tasked with the scheduling of calendar events with other participants.
 - The chatbot memorizes personal calendar preferences of the user. These preferences can be viewed and managed on the
   Slack app home tab.
-- QArrange has access to calendars (not yet implemented, currently mocked).
-- QArrange can create calendar events after successful scheduling (not yet implemented).
+- QArrange has access to calendars and can create events after successful scheduling.
 
-## Tech stack
+## Agent Flow
 
-- [Agno](https://github.com/agno-agi/agno)
-- [slack-sdk](https://pypi.org/project/slack-sdk)
-- [slack-bolt](https://pypi.org/project/slack-bolt) (in socket mode)
-- Google Calendar
-- SQLite (session storage, long-term memory)
-- OpenAI language models
+![agent-flow.svg](agent-flow.svg)
 
-## Agent flow
-
-### Event scheduling
+### Event Scheduling
 
 - A user queries the **Secretary Agent** via Slack, providing information about the meeting (title, desired
   date and time, duration, participants).
@@ -40,29 +32,39 @@ The goal is to assist users with finding time slots for meetings given the follo
   in case of conflicts, aiming for consensus.
 - The **User Agents** (one per meeting participants) have access to user preferences and personal calendars and
   represent their users during the negotiation.
+- After a working time slot has been reported back to the Secretary Agent, it will create a calendar event.
 
-### Preference memorization
+### Preference Memorization
 
 - A user tells the **Secretary Agent** about any kind of preference regarding their calendar.
 - The **Secretary Agent** asks the **Memory Agent** to store the provided preference.
 - The **Memory Agent** rephrases the preference and stores it in a database.
 
-## Possible next steps
+## Tech Stack
+
+- [Agno](https://github.com/agno-agi/agno)
+- [slack-sdk](https://pypi.org/project/slack-sdk)
+- [slack-bolt](https://pypi.org/project/slack-bolt) (in socket mode)
+- Google Calendar
+- SQLite (session storage, long-term memory)
+- OpenAI language models
+
+## Possible Next Steps
 
 - Facilitate deployment to a cloud via proper Docker setup.
 - Include participants in created calendar events (requires domain-wide delegation authority).
 - Respect national holidays.
 - Implement asynchronously for productive use.
-- Realize calendar integration via MCP. 
+- Realize calendar integration via MCP.
 - Use Agno's "human in the loop" feature for confirmation requests.
 
-## Example screenshots
+## Example Screenshots
 
 ![screenshot-0.png](screenshot-0.png)
 
 ![screenshot-1.png](screenshot-1.png)
 
-## Example logs
+## Example Logs
 
 ```
 ⚡️ Bolt app is running!
@@ -90,9 +92,9 @@ The goal is to assist users with finding time slots for meetings given the follo
 [SLACKUSERA/1747988191] Responding to message.
 ```
 
-## Local execution
+## Local Execution
 
-### First-time setup
+### First-time Setup
 
 Make sure to have `python3.10` available, e.g., via `brew install python@3.10` on macOS. Using this version is a
 workaround for an issue similar to [this](https://github.com/resemble-ai/resemble-enhance/issues/52).
@@ -127,17 +129,19 @@ python main.py
 ### Observability
 
 Run the Agno Playground back end:
+
 ```shell
 python playground.py
 ```
 
 In another terminal, run the Agno Playground front end:
+
 ```shell
 npx create-agent-ui@latest
 npm --prefix agent-ui run dev
 ```
 
-Note that the Broker Agent's interactions cannot be visualized yet 
+Note that the Broker Agent's interactions cannot be visualized yet
 (see [issue](https://github.com/agno-agi/agent-ui/issues/87)).
 
 ## References

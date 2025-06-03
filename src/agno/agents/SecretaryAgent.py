@@ -46,7 +46,7 @@ class SecretaryAgent(Agent):
             agent_id=self.__class__.__name__,
             user_id=user_id,
             session_id=self.session_id,
-            session_name=self.session_id, # TODO: https://github.com/agno-agi/agno/issues/3328
+            session_name=self.session_id,
             storage=agent_session_storage,
             memory=preference_memory,
             enable_agentic_memory=True,
