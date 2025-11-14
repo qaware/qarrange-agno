@@ -1,23 +1,33 @@
+from textwrap import dedent
+
 from agno.models.openai import OpenAIChat
 from agno.team import Team
 
-from src.agno.agents import team_sessions_storage
+from src.agno.agents import agentic_database
 from src.agno.agents.UserAgent import UserAgent
 
-AGENT_MODEL = "o4-mini"
+AGENT_MODEL = "gpt-5"
 AGENT_NAME = "Broker Agent"
-AGENT_DESCRIPTION = "Negotiate date and time for a meeting with multiple participants, represented by their respective User Agent (your team members)."
-AGENT_INSTRUCTIONS = [
-    "Receive requests to find a suitable date and time for a meeting with specified participants.",
-    "Query each participant's availability from their respective Calendar User Agent.",
-    "Negotiate back and forth until consensus on a date and time is reached.",
-    "Reiterate the inquiries with the agents in case of conflicts, asking for suggested alternatives and compromises.",
-    "IN CASE OF CONFLICTS, DO NOT IMMEDIATELY RESPOND TO THE CALLER! Instead, continue to negotiate with the Calendar User Agents.",
-    "If Calendar User Agents indicate that some of their user's existing blockers may be overwritten, MAKE USE OF THIS OFFER, without checking back.",
-    "Once you have achieved consensus, immediately report back to the caller. No need to inform the Calendar User Agents about the outcome.",
-    "Your goal is to provide the caller with a final result (a definite date and time), not with choices. MAKE A DECISION!",
-]
-AGENT_SUCCESS_CRITERIA = "A consensus on meeting date and time is reached, or it is definitively determined that no common time slot exists."
+AGENT_DESCRIPTION = "Agent responsible for the negotiation of date and time for a meeting with multiple participants, represented by their respective User Agents."
+AGENT_INSTRUCTIONS = dedent("""
+    You are an agent that will be tasked with finding a suitable date and time for a meeting with specified participants.
+    Query each participant's availability from their respective User Agent.
+    You are NOT interested in details about the user's calender or preferences. You are ONLY interested in:
+        - Timeslots that are available and favored.
+        - Timeslots that are available but disfavored.
+        - Timeslots that are unavailable.
+    Negotiate back and forth until consensus on a date and time is reached.
+    Reiterate the inquiries with the agents in case of conflicts, asking for suggested alternatives and compromises.
+    In case of conflicts, do NOT immediately respond to the caller! Instead, continue to negotiate with the User Agents.
+    If a User Agent indicates that some of their user's existing blockers may be overwritten, MAKE USE OF THIS OFFER, WITHOUT checking back.
+    Once you have achieved consensus, IMMEDIATELY report back to the caller. DO NOT inform the User Agents about the outcome.
+    Your goal is to provide the caller with a final result (a definite date and time), not with choices. MAKE A DECISION!
+    Important information about the User Agents you can communicate with:
+        - The User Agents have read access to the calendar and the personal scheduling preferences of the desired meeting participants.
+        - The User Agents CANNOT prompt the user or make final decisions, they can only provide the latest information about the calendars and personal scheduling preferences.
+        - The User Agents CANNOT create calendar events. This will be done by the entity that is calling YOU.
+        - The User Agents DO NOT care about the final outcome of the negotiation. They are just your source of information.
+""")
 
 
 class BrokerAgent(Team):
@@ -31,43 +41,41 @@ class BrokerAgent(Team):
         if participants is None:
             participants = []
 
-        self._session_id_without_context = session_id
-        self.session_id = f"{self._session_id_without_context}-{self.__class__.__name__}"
+        self._conversation_session_id = session_id
+        self.agent_id = f"{self.__class__.__name__}"
+        self.session_id = f"{self._conversation_session_id}-{self.agent_id}"
 
         print(f"[{user_id}-{self.session_id}] Initializing.")
 
         members = [
-            UserAgent(participant_user_id=participant, initiator_user_id=user_id,
-                      session_id=self._session_id_without_context)
+            UserAgent(
+                participant_user_id=participant, 
+                initiator_user_id=user_id,
+                session_id=self._conversation_session_id
+            )
             for participant in participants
         ]
         super().__init__(
+            id=self.agent_id,
             model=OpenAIChat(id=AGENT_MODEL),
             name=AGENT_NAME,
             description=AGENT_DESCRIPTION,
             instructions=AGENT_INSTRUCTIONS,
-            success_criteria=AGENT_SUCCESS_CRITERIA,
-            team_id=self.__class__.__name__,
             user_id=user_id,
             session_id=self.session_id,
-            session_name=self.session_id,
-            storage=team_sessions_storage,
-            add_datetime_to_instructions=True,
-            mode="coordinate",
             members=members,
-            read_team_history=True, # effect unclear
-            enable_team_history=True, # effect unclear
-            num_history_runs=64, # effect unclear
-            add_member_tools_to_system_message=False,
-            show_tool_calls=True,
-            debug_mode=True
+            db=agentic_database,
+            add_datetime_to_context=True,
+            add_history_to_context=True,
+            num_history_messages=64,
+            add_member_tools_to_context=False,
         )
 
-    def find_time_slot(self, *, title: str, date: str, duration: str, participants: list[str]) -> str:
+    async def find_time_slot(self, *, title: str, date: str, duration: str, participants: list[str]) -> str:
         print(f"[{self.user_id}-{self.session_id}] Negotiating.")
         message = "Negotiate a time slot for the following meeting:\n"
         message += f"- Title: {title}\n"
         message += f"- Date: {date}\n"
         message += f"- Duration: {duration}\n"
         message += f"- Participants: {', '.join(participants)}"
-        return super().run(message).content
+        return (await super().arun(message)).content

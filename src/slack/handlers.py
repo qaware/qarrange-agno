@@ -1,14 +1,17 @@
-from slack_bolt import App, Ack
-from slack_sdk import WebClient
+from agno.run.agent import RunContentCompletedEvent, RunContentEvent, ToolCallStartedEvent, ToolCallCompletedEvent, \
+    RunStartedEvent, RunCompletedEvent
+from slack_bolt.async_app import AsyncApp, AsyncAck
+from slack_sdk.web.async_chat_stream import AsyncChatStream
+from slack_sdk.web.async_client import AsyncWebClient
 
-from src.chatbot.service import handle_request, forget_preference, recall_preferences
+from src.chatbot.service import run_request, forget_preference, recall_preferences
 from src.database.service import fetch_email, store_email
 
 
-def register_handlers(slack_app: App):
-    def publish_app_home(client: WebClient, user_id: str):
-        def render_preferences() -> list[dict]:
-            return header_preferences_header() + render_preferences_content()
+def register_handlers(slack_app: AsyncApp):
+    async def publish_app_home(client: AsyncWebClient, user_id: str):
+        async def render_preferences() -> list[dict]:
+            return header_preferences_header() + await render_preferences_content()
 
         def header_preferences_header() -> list[dict]:
             return [
@@ -25,8 +28,8 @@ def register_handlers(slack_app: App):
                 }
             ]
 
-        def render_preferences_content() -> list[dict]:
-            preferences = recall_preferences(user_id=user_id)
+        async def render_preferences_content() -> list[dict]:
+            preferences = await recall_preferences(user_id=user_id)
             if preferences:
                 return [
                     element
@@ -87,7 +90,7 @@ def register_handlers(slack_app: App):
                 }
             }]
 
-        def render_settings() -> list[dict]:
+        async def render_settings() -> list[dict]:
             return [
                 {
                     "type": "header",
@@ -104,7 +107,7 @@ def register_handlers(slack_app: App):
                         "type": "plain_text_input",
                         "multiline": False,
                         "action_id": "email_updated",
-                        "initial_value": get_email(),
+                        "initial_value": await get_email(),
                         "dispatch_action_config": {
                             "trigger_actions_on": ["on_enter_pressed"]
                         }
@@ -116,36 +119,36 @@ def register_handlers(slack_app: App):
                 }
             ]
 
-        def get_email() -> str:
+        async def get_email() -> str:
             database_email = fetch_email(user_id)
             if not database_email:
-                user_email = slack_app.client.users_info(user=user_id)['user']['profile']['email']
+                user_email = (await slack_app.client.users_info(user=user_id))['user']['profile']['email']
                 store_email(user_id, user_email)
                 return user_email
             return database_email
 
-        client.views_publish(
+        await client.views_publish(
             user_id=user_id,
             view={
                 "type": "home",
-                "blocks": render_preferences() + render_settings()
+                "blocks": await render_preferences() + await render_settings()
             }
         )
 
     @slack_app.event("app_home_opened")
-    def slack_app_event_app_home_opened(ack: Ack, client: WebClient, event: dict) -> None:
-        ack()
-        if event["tab"] != "home":
+    async def slack_app_event_app_home_opened(ack: AsyncAck, client: AsyncWebClient, event: dict) -> None:
+        await ack()
+        if event.get("tab", None) != "home":
             return
 
         user_id = event["user"]
         print(f"[{user_id}] App home opened.")
 
-        publish_app_home(client, user_id)
+        await publish_app_home(client, user_id)
 
     @slack_app.action("preference_deleted")
-    def slack_app_action_preference_deleted(ack: Ack, client: WebClient, action: dict, body: dict) -> None:
-        ack()
+    async def slack_app_action_preference_deleted(ack: AsyncAck, client: AsyncWebClient, action: dict, body: dict) -> None:
+        await ack()
 
         user_id = body["user"]["id"]
         preference_id = action["value"]
@@ -153,11 +156,11 @@ def register_handlers(slack_app: App):
 
         forget_preference(user_id=user_id, preference_id=preference_id)
 
-        publish_app_home(client, user_id)
+        await publish_app_home(client, user_id)
 
     @slack_app.action("email_updated")
-    def app_action_email_updated(ack: Ack, client: WebClient, action: dict, body: dict) -> None:
-        ack()
+    async def app_action_email_updated(ack: AsyncAck, client: AsyncWebClient, action: dict, body: dict) -> None:
+        await ack()
 
         user_id = body['user']['id']
         email = action['value']
@@ -165,25 +168,60 @@ def register_handlers(slack_app: App):
 
         store_email(user_id, email)
 
-        publish_app_home(client, user_id)
+        await publish_app_home(client, user_id)
 
     @slack_app.event("message")
-    def slack_app_event_message(ack: Ack, client: WebClient, event: dict) -> None:
-        def sanitize_slack_message(message: str):
-            return message.replace("**", "*")
+    async def slack_app_event_message(ack: AsyncAck, client: AsyncWebClient, event: dict) -> None:
+        async def start_stream() -> AsyncChatStream:
+            return await client.chat_stream(
+                channel=event["channel"],
+                thread_ts=event["ts"],
+                buffer_size=32, # For a nicer effect.
+                unfurl_links=False
+            )
+        async def append_to_stream(message: str) -> None:
+            await stream.append(
+                markdown_text=message,
+            )
+        async def post_message(message: str) -> str:
+            return (await client.chat_postMessage(
+                markdown_text=message,
+                channel=event["channel"],
+                thread_ts=event["ts"],
+                unfurl_links=False
+            ))["ts"]
+        async def update_message(ts: str, message: str) -> None:
+            await client.chat_update(
+                ts=ts,
+                markdown_text=message,
+                channel=event["channel"],
+                thread_ts=event["ts"],
+                unfurl_links=False
+            )
 
-        ack()
+        await ack()
 
         user_id = event["user"]
         session_id = event["thread_ts"].replace(".", "")
-        print(f"[{user_id}-{session_id}] Receiving message.")
+        print(f"[{user_id}-{session_id}] Received message.")
 
-        response = handle_request(user_id=user_id, session_id=session_id, message=event["text"])
+        stream = await start_stream()
 
-        print(f"[{user_id}-{session_id}] Responding to message.")
-        client.chat_postMessage(
-            text=sanitize_slack_message(response),
-            channel=event["channel"],
-            thread_ts=event["ts"],
-            unfurl_links=False
-        )
+        original_message_ts = ""
+        async for partial in run_request(user_id=user_id, session_id=session_id, message=event["text"]):
+            match partial:
+                case RunContentEvent():
+                    await append_to_stream(partial.content)
+                case RunContentCompletedEvent():
+                    await stream.stop()
+                case ToolCallStartedEvent():
+                    original_message_ts = await post_message(f":gear: `{partial.tool.tool_name}`")
+                case ToolCallCompletedEvent():
+                    await update_message(original_message_ts, f":white_check_mark: `{partial.tool.tool_name}`")
+                case RunStartedEvent() | RunCompletedEvent():
+                    pass
+                case _:
+                    print("Unhandled event:", partial)
+
+        print(f"[{user_id}-{session_id}] Responded to message.")
+

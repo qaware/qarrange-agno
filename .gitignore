@@ -1,5 +1,7 @@
 *.secret
 *.db*
+.env
+*.iml
 /.idea
 /.venv
 /agent-ui

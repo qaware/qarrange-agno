@@ -54,7 +54,6 @@ The goal is to assist users with finding time slots for meetings given the follo
 - Facilitate deployment to a cloud via proper Docker setup.
 - Include participants in created calendar events (requires domain-wide delegation authority).
 - Respect national holidays.
-- Implement asynchronously for productive use.
 - Realize calendar integration via MCP.
 - Use Agno's "human in the loop" feature for confirmation requests.
 
@@ -108,13 +107,7 @@ pip install -r requirements.txt
 
 ### Environment
 
-Prepare your environment with the following variables:
-
-```
-SLACK_APP_TOKEN=xapp-...
-SLACK_BOT_TOKEN=xoxb-...
-OPENAI_API_KEY=sk-proj-...
-```
+Prepare your environment in [.env](.env) based on [.env.example](.env.example).
 
 Furthermore, store credentials for a Google Cloud service account in
 [google-calendar-service-account.json.secret](./google-calendar-service-account.json.secret). The account must be
@@ -128,21 +121,18 @@ python main.py
 
 ### Observability
 
-Run the Agno Playground back end:
+Run the Agno Agent OS:
 
 ```shell
-python playground.py
+python agent_os.py
 ```
 
-In another terminal, run the Agno Playground front end:
+In another terminal, run the Agno Agent UI:
 
 ```shell
 npx create-agent-ui@latest
 npm --prefix agent-ui run dev
 ```
-
-Note that the Broker Agent's interactions cannot be visualized yet
-(see [issue](https://github.com/agno-agi/agent-ui/issues/87)).
 
 ## References
 

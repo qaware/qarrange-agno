@@ -1,11 +1,11 @@
-from agno.playground import Playground, serve_playground_app
+from agno.os import AgentOS
 
 from src.agno.agents.BrokerAgent import BrokerAgent
 from src.agno.agents.SecretaryAgent import SecretaryAgent
 from src.agno.agents.UserAgent import UserAgent
 from src.database.service import list_all_user_ids
 
-app = Playground(
+agent_os = AgentOS(
     agents=[
         SecretaryAgent()
     ] + [
@@ -14,7 +14,9 @@ app = Playground(
     teams=[
         BrokerAgent(),
     ]
-).get_app()
+)
+
+app = agent_os.get_app()
 
 if __name__ == "__main__":
-    serve_playground_app("playground:app", reload=True)
+    agent_os.serve("agent_os:app", reload=True)
