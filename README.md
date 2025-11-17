@@ -1,5 +1,5 @@
 > [!NOTE]  
-> This project is just for demonstration purposes and not intended for production use.
+> This project is for demonstration purposes only and not intended for production use.
 
 # QArrange (Implemented with Agno)
 
