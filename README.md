@@ -1,10 +1,10 @@
+> [!NOTE]  
+> This project is just for demonstration purposes and not intended for production use.
+
 # QArrange (Implemented with Agno)
 
 This repository contains an AI-agent-based tool assisting in scheduling meetings. It makes use of the AI agent
 framework [Agno](https://github.com/agno-agi/agno) via Python.
-
-> [!NOTE]  
-> This project is just for demonstration purposes and, as is, not intended for production use.
 
 ## Goal
 
