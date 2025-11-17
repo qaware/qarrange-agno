@@ -5,7 +5,7 @@ from agno.models.openai import OpenAIChat
 
 from src.agno.agents import agentic_database
 
-MEMORY_MANAGER_MODEL = "gpt-4.1-mini"
+MEMORY_MANAGER_MODEL = "gpt-5.1-chat-latest"
 MEMORY_MANAGER_CAPTURE_INSTRUCTIONS = dedent("""
     Memories should capture user preferences regarding their calendar and schedule, for instance:
     - Information about meetings that are generally unimportant to the user and may be overwritten by new events

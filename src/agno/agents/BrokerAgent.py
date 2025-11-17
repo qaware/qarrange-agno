@@ -6,7 +6,7 @@ from agno.team import Team
 from src.agno.agents import agentic_database
 from src.agno.agents.UserAgent import UserAgent
 
-AGENT_MODEL = "gpt-5"
+AGENT_MODEL = "gpt-5.1"
 AGENT_NAME = "Broker Agent"
 AGENT_DESCRIPTION = "Agent responsible for the negotiation of date and time for a meeting with multiple participants, represented by their respective User Agents."
 AGENT_INSTRUCTIONS = dedent("""

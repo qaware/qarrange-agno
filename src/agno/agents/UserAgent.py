@@ -10,7 +10,7 @@ from src.agno.agents.MemoryAgent import memory_agent
 from src.database.service import fetch_email
 from src.google.calendar import GoogleCalendar
 
-AGENT_MODEL = "gpt-4.1-mini"
+AGENT_MODEL = "gpt-5.1-chat-latest"
 AGENT_NAME = "User Agent {}"
 AGENT_ROLE = "Agent providing information about the calendar and scheduling preferences of user {}"
 AGENT_INSTRUCTIONS = dedent("""
