@@ -3,6 +3,9 @@
 This repository contains an AI-agent-based tool assisting in scheduling meetings. It makes use of the AI agent
 framework [Agno](https://github.com/agno-agi/agno) via Python.
 
+> [!NOTE]  
+> This project is just for demonstration purposes and, as is, not intended for production use.
+
 ## Goal
 
 The goal is to assist users with finding time slots for meetings given the following constraints:
