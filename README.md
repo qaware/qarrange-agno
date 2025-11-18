@@ -52,14 +52,6 @@ The goal is to assist users with finding time slots for meetings given the follo
 - SQLite (session storage, long-term memory)
 - OpenAI language models
 
-## Possible Next Steps
-
-- Facilitate deployment to a cloud via proper Docker setup.
-- Include participants in created calendar events (requires domain-wide delegation authority).
-- Respect national holidays.
-- Realize calendar integration via MCP.
-- Use Agno's "human in the loop" feature for confirmation requests.
-
 ## Example Screenshots
 
 ![screenshot-0.png](screenshot-0.png)
@@ -70,28 +62,35 @@ The goal is to assist users with finding time slots for meetings given the follo
 
 ```
 ⚡️ Bolt app is running!
-[SLACKUSERA] App home opened.
-[SLACKUSERA/1747988191] Receiving message.
-[SLACKUSERA/1747988191/SecretaryAgent] Initializing.
-[SLACKUSERA/1747988191/SecretaryAgent] Initialize scheduling of event:
-  Title: AI Session
-  Date: next Thursday
-  Duration: 2 hours
-  Participants: ['SLACKUSERA', 'SLACKUSERB']
-[SLACKUSERA/1747988191/BrokerAgent] Initializing.
-[SLACKUSERA/1747988191/UserAgent/SLACKUSERA] Initializing.
-[SLACKUSERA/1747988191/UserAgent/SLACKUSERB] Initializing.
-[SLACKUSERA/1747988191/BrokerAgent] Negotiating.
-[SLACKUSERA/1747988191/UserAgent/SLACKUSERA] Reading calendar at 2025-05-29.
-[GoogleCalendar] Fetching blocker events at 2025-05-29 from calendar user-a@google.com.
+[U000000000A] App home opened.
+[U000000000A-1763462485679699] Received message.
+[U000000000A-1763462485679699-SecretaryAgent] Initializing.
+[U000000000A-1763462485679699] Responded to message.
+[U000000000A-1763462485679699] Received message.
+[U000000000A-1763462485679699-SecretaryAgent] Initializing.
+[U000000000A-1763462485679699-SecretaryAgent] Initialize scheduling of event:
+  Title: KI-Themen
+  Date: kommenden Donnerstag
+  Duration: 1 Stunde
+  Participants: ['U000000000A', 'U000000000B', 'U000000000C']
+[U000000000A-1763462485679699-UserAgent-U000000000A] Initializing.
+[U000000000A-1763462485679699-UserAgent-U000000000B] Initializing.
+[U000000000A-1763462485679699-UserAgent-U000000000C] Initializing.
+[U000000000A-1763462485679699-BrokerAgent] Initializing.
+[U000000000A-1763462485679699-BrokerAgent] Negotiating.
+[U000000000A-1763462485679699-UserAgent-U000000000A] Fetching calendar at 2025-11-20.
+[GoogleCalendar] Fetching blocker events at 2025-11-20 from calendar a@group.calendar.google.com.
 [GoogleCalendar] Fetched 2 blocker events.
-[SLACKUSERA/1747988191/UserAgent/SLACKUSERB] Reading calendar at 2025-05-29.
-[GoogleCalendar] Fetching blocker events at 2025-05-29 from calendar user-b@google.com.
+[U000000000A-1763462485679699-UserAgent-U000000000B] Fetching calendar at 2025-11-20.
+[GoogleCalendar] Fetching blocker events at 2025-11-20 from calendar b@group.calendar.google.com.
 [GoogleCalendar] Fetched 1 blocker events.
-[SLACKUSERA/1747988191/SecretaryAgent] Creating event.
-[GoogleCalendar] Creating event in calendar user-a@google.com: {'summary': 'AI Session', 'description': 'Created by QArrange.', 'start': {'dateTime': '2025-05-29T13:00:00+02:00'}, 'end': {'dateTime': '2025-05-29T15:00:00+02:00'}}
-[GoogleCalendar] Created event:  https://www.google.com/calendar/event?eid=my-event
-[SLACKUSERA/1747988191] Responding to message.
+[U000000000A-1763462485679699-UserAgent-U000000000C] Fetching calendar at 2025-11-20.
+[GoogleCalendar] Fetching blocker events at 2025-11-20 from calendar c@group.calendar.google.com.
+[GoogleCalendar] Fetched 1 blocker events.
+[U000000000A-1763462485679699-SecretaryAgent] Creating event.
+[GoogleCalendar] Creating event in calendar a@group.calendar.google.com: {'summary': 'KI-Themen', 'description': 'Created by QArrange.', 'start': {'dateTime': '2025-11-20T13:00:00+01:00'}, 'end': {'dateTime': '2025-11-20T14:00:00+01:00'}}
+[GoogleCalendar] Created event: https://www.google.com/calendar/event?eid=...
+[U000000000A-1763462485679699] Responded to message.
 ```
 
 ## Local Execution
