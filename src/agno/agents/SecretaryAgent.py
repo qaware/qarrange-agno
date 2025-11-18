@@ -46,23 +46,23 @@ class SecretaryAgent(Agent):
     def __init__(
             self, *,
             user_id: str | None = None,
-            session_id: str | None = None
+            session_ts: str | None = None
     ) -> None:
-        self._conversation_session_id = session_id
-        self.agent_id = f"{self.__class__.__name__}"
-        self.session_id = f"{self._conversation_session_id}-{self.agent_id}"
+        self.id = self.__class__.__name__
+        self.user_id = user_id
+        self.session_ts = session_ts
+        self.session_id = f"{session_ts}-{self.id}"
+        print(f"[{self.logging_prefix}] Initializing.")
 
-        print(f"[{user_id}-{self.session_id}] Initializing.")
-
-        self._calendar = GoogleCalendar(fetch_email(user_id))
+        self._calendar = GoogleCalendar(fetch_email(self.user_id))
 
         super().__init__(
-            id=self.agent_id,
+            id=self.id,
             model=OpenAIChat(id=AGENT_MODEL),
             name=AGENT_NAME,
             description=AGENT_DESCRIPTION,
             instructions=AGENT_INSTRUCTIONS,
-            user_id=user_id,
+            user_id=self.user_id,
             session_id=self.session_id,
             db=agentic_database,
             memory_manager=memory_agent,
@@ -73,6 +73,10 @@ class SecretaryAgent(Agent):
             tools=[self.initiate_scheduling, self.create_event],
             markdown=True,
         )
+
+    @property
+    def logging_prefix(self) -> str:
+        return f"{self.user_id}-{self.session_id}"
 
     async def initiate_scheduling(
             self,
@@ -95,7 +99,7 @@ class SecretaryAgent(Agent):
             str: The answer of the broker agent containing the negotiated time slot
         """
 
-        print(f"[{self.user_id}-{self.session_id}] Initialize scheduling of event:")
+        print(f"[{self.logging_prefix}] Initialize scheduling of event:")
         print(f"  Title: {title}")
         print(f"  Date: {date}")
         print(f"  Duration: {duration}")
@@ -106,7 +110,7 @@ class SecretaryAgent(Agent):
 
         broker = BrokerAgent(
             user_id=self.user_id,
-            session_id=self._conversation_session_id,
+            session_ts=self.session_ts,
             participants=participants
         )
         return await broker.find_time_slot(title=title, date=date, duration=duration, participants=participants)
@@ -134,7 +138,7 @@ class SecretaryAgent(Agent):
         if not self._calendar.is_correctly_configured():
             raise AgentRunException("Calendar not configured for user.")
 
-        print(f"[{self.user_id}-{self.session_id}] Creating event.")
+        print(f"[{self.logging_prefix}] Creating event.")
 
         return self._calendar.create_event(
             title=title,

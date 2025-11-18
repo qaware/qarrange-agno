@@ -11,7 +11,8 @@ AGENT_NAME = "Broker Agent"
 AGENT_DESCRIPTION = "Agent responsible for the negotiation of date and time for a meeting with multiple participants, represented by their respective User Agents."
 AGENT_INSTRUCTIONS = dedent("""
     You are an agent that will be tasked with finding a suitable date and time for a meeting with specified participants.
-    Query each participant's availability from their respective User Agent.
+    You will be tasked by a conversation partner called 'user', not to be confused with the User Agents (your team members).
+    Interview each participant's availability from their respective User Agent.
     You are NOT interested in details about the user's calender or preferences. You are ONLY interested in:
         - Timeslots that are available and favored.
         - Timeslots that are available but disfavored.
@@ -35,44 +36,48 @@ class BrokerAgent(Team):
     def __init__(
             self, *,
             user_id: str | None = None,
-            session_id: str | None = None,
+            session_ts: str | None = None,
             participants: list[str] | None = None
     ) -> None:
         if participants is None:
             participants = []
 
-        self._conversation_session_id = session_id
-        self.agent_id = f"{self.__class__.__name__}"
-        self.session_id = f"{self._conversation_session_id}-{self.agent_id}"
-
-        print(f"[{user_id}-{self.session_id}] Initializing.")
-
+        self.id = self.__class__.__name__
+        self.user_id = user_id
+        self.session_ts = session_ts
+        self.session_id = f"{session_ts}-{self.id}"
         members = [
             UserAgent(
-                participant_user_id=participant, 
-                initiator_user_id=user_id,
-                session_id=self._conversation_session_id
+                participant_user_id=participant,
+                user_id=user_id,
+                session_ts=session_ts
             )
             for participant in participants
         ]
+
+        print(f"[{self.logging_prefix}] Initializing.")
+
         super().__init__(
-            id=self.agent_id,
+            id=self.id,
             model=OpenAIChat(id=AGENT_MODEL),
             name=AGENT_NAME,
             description=AGENT_DESCRIPTION,
             instructions=AGENT_INSTRUCTIONS,
-            user_id=user_id,
+            user_id=self.user_id,
             session_id=self.session_id,
             members=members,
             db=agentic_database,
             add_datetime_to_context=True,
-            add_history_to_context=True,
-            num_history_messages=64,
+            add_history_to_context=False,
             add_member_tools_to_context=False,
         )
 
+    @property
+    def logging_prefix(self) -> str:
+        return f"{self.user_id}-{self.session_id}"
+
     async def find_time_slot(self, *, title: str, date: str, duration: str, participants: list[str]) -> str:
-        print(f"[{self.user_id}-{self.session_id}] Negotiating.")
+        print(f"[{self.logging_prefix}] Negotiating.")
         message = "Negotiate a time slot for the following meeting:\n"
         message += f"- Title: {title}\n"
         message += f"- Date: {date}\n"
